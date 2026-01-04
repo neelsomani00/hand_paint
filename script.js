@@ -1,107 +1,111 @@
-// --- 1. THREE.JS 3D SCENE SETUP ---
-const container = document.getElementById('three-container');
+// --- 1. CORE 3D SCENE ---
 const scene = new THREE.Scene();
-const camera3D = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-renderer.setSize(container.clientWidth, container.clientHeight);
-container.appendChild(renderer.domElement);
+// --- 2. THE PARTICLE SWARM ---
+const particleCount = 5000;
+const positions = new Float32Array(particleCount * 3);
+const velocities = new Float32Array(particleCount * 3);
 
-// Add a glowing ball
-const geometry = new THREE.SphereGeometry(1, 32, 32);
-const material = new THREE.MeshPhongMaterial({ color: 0x007acc, shininess: 100 });
-const ball = new THREE.Mesh(geometry, material);
-scene.add(ball);
+for (let i = 0; i < particleCount * 3; i++) {
+    positions[i] = (Math.random() - 0.5) * 10;
+    velocities[i] = 0;
+}
 
-// Add a grid floor to see movement better
-const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
-grid.position.y = -2;
-scene.add(grid);
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-// Lighting
-const light = new THREE.PointLight(0xffffff, 1, 100);
-light.position.set(10, 10, 10);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040));
+const mat = new THREE.PointsMaterial({
+    color: 0x00f3ff,
+    size: 0.05,
+    transparent: true,
+    blending: THREE.AdditiveBlending
+});
 
-camera3D.position.z = 8;
+const particles = new THREE.Points(geo, mat);
+scene.add(particles);
+camera.position.z = 5;
 
-// Animation Loop
+// Pointer Target (This follows your hand)
+let target = new THREE.Vector3(0, 0, 0);
+let isPinching = false;
+
+// --- 3. ANIMATION LOOP (The Physics) ---
 function animate() {
     requestAnimationFrame(animate);
-    ball.rotation.y += 0.01;
-    renderer.render(scene, camera3D);
+    
+    const posAttr = geo.attributes.position;
+    for (let i = 0; i < particleCount; i++) {
+        let ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+
+        // Vector from particle to hand
+        let dx = target.x - posAttr.array[ix];
+        let dy = target.y - posAttr.array[iy];
+        let dz = target.z - posAttr.array[iz];
+        let dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+        if (isPinching) {
+            // EXPLOSION MODE
+            velocities[ix] -= dx / (dist * 10);
+            velocities[iy] -= dy / (dist * 10);
+        } else {
+            // SWARM MODE (Gravity toward hand)
+            velocities[ix] += dx / (dist * 500);
+            velocities[iy] += dy / (dist * 500);
+            velocities[iz] += dz / (dist * 500);
+        }
+
+        // Friction (slows them down so they don't fly away forever)
+        velocities[ix] *= 0.95;
+        velocities[iy] *= 0.95;
+        velocities[iz] *= 0.95;
+
+        // Update positions
+        posAttr.array[ix] += velocities[ix];
+        posAttr.array[iy] += velocities[iy];
+        posAttr.array[iz] += velocities[iz];
+    }
+    posAttr.needsUpdate = true;
+    renderer.render(scene, camera);
 }
 animate();
 
-// --- 2. HAND TRACKING & MIRROR FIX ---
-let lastX = 0;
-let lastY = 0;
-const smoothing = 0.15;
+// --- 4. AI HAND TRACKING ---
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 
-function getDist(p1, p2) {
-    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-}
-
-function onResults(results) {
-    const canvasElement = document.getElementsByClassName('output_canvas')[0];
+hands.onResults((results) => {
+    const canvasElement = document.querySelector('.output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
-    canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-    if (results.multiHandLandmarks) {
-        for (const landmarks of results.multiHandLandmarks) {
-            // Draw Hand Skeleton
-            drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#007acc', lineWidth: 2});
+    if (results.multiHandLandmarks && results.multiHandLandmarks[0]) {
+        const landmarks = results.multiHandLandmarks[0];
+        
+        // Map 2D to 3D Space (Fixed Mirroring)
+        target.x = ((1 - landmarks[8].x) - 0.5) * 10;
+        target.y = ((1 - landmarks[8].y) - 0.5) * 8;
+        
+        // Pinch Detection
+        const dist = Math.sqrt(Math.pow(landmarks[8].x - landmarks[4].x, 2) + Math.pow(landmarks[8].y - landmarks[4].y, 2));
+        isPinching = dist < 0.05;
 
-            const indexTip = landmarks[8];
-            const thumbTip = landmarks[4];
-
-            // MIRROR FIX: 
-            // MediaPipe gives 0 on left, 1 on right. 
-            // In 3D, we want 1 to be right, 0 to be left. 
-            // Because our video is mirrored, we use (1 - indexTip.x) to flip it back.
-            const rawX = (1 - indexTip.x); 
-            const rawY = (1 - indexTip.y);
-
-            // Convert 0-1 range to -5 to 5 for 3D space
-            const targetX = (rawX - 0.5) * 15;
-            const targetY = (rawY - 0.5) * 10;
-
-            // Apply Smoothing
-            ball.position.x += (targetX - ball.position.x) * smoothing;
-            ball.position.y += (targetY - ball.position.y) * smoothing;
-
-            // Pinch Detection to change color
-            const pinch = getDist(indexTip, thumbTip);
-            if(pinch < 0.05) {
-                ball.material.color.setHex(0xff0000); // Red when pinching
-                document.getElementById('gesture-text').innerText = "PINCH: COLOR CHANGE";
-            } else {
-                ball.material.color.setHex(0x007acc); // Blue normally
-                document.getElementById('gesture-text').innerText = "MOVING BALL";
-            }
-        }
+        document.getElementById('sync-val').innerText = "100%";
+        document.getElementById('gesture-name').innerText = isPinching ? "SHOCKWAVE_EMITTED" : "VORTEX_LOCKED";
+        mat.color.setHex(isPinching ? 0xff0055 : 0x00f3ff);
+    } else {
+        document.getElementById('sync-val').innerText = "0%";
+        document.getElementById('gesture-name').innerText = "LOST_SIGNAL";
     }
-    canvasCtx.restore();
-}
+});
 
-// --- 3. INITIALIZE MEDIAPIPE ---
-const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
-hands.onResults(onResults);
-
-const videoElement = document.getElementsByClassName('input_video')[0];
-const camera = new Camera(videoElement, {
+const videoElement = document.querySelector('.input_video');
+const cameraDevice = new Camera(videoElement, {
     onFrame: async () => { await hands.send({image: videoElement}); },
     width: 640, height: 480
 });
-camera.start();
-
-// Handle Window Resize
-window.addEventListener('resize', () => {
-    camera3D.aspect = container.clientWidth / container.clientHeight;
-    camera3D.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-});
+cameraDevice.start();
