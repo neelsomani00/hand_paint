@@ -1,31 +1,53 @@
-body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-#canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+body { 
+    margin: 0; 
+    background: radial-gradient(circle, #0a0a1a 0%, #000000 100%); 
+    overflow: hidden; 
+    font-family: 'Courier New', monospace; 
+}
 
-/* The Mini Camera Preview */
+#canvas-container { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+}
+
 .output_canvas {
     position: absolute;
     bottom: 20px;
     right: 20px;
     width: 180px;
-    height: 120px;
-    border: 2px solid #00f3ff;
+    height: 135px;
+    border: 1px solid #00f3ff;
     border-radius: 8px;
-    z-index: 10;
+    transform: scaleX(-1); /* Corrects mirror for preview */
     opacity: 0.6;
-    transform: scaleX(-1);
+    z-index: 10;
 }
 
-.input_video { display: none; }
+.input_video { 
+    display: none; 
+}
 
-/* Sci-Fi Overlay */
-.overlay {
-    position: absolute;
-    top: 20px;
-    left: 20px;
+.overlay { 
+    position: absolute; 
+    top: 30px; 
+    left: 30px; 
+    color: #00f3ff; 
+    text-shadow: 0 0 10px #00f3ff; 
+    pointer-events: none;
     z-index: 5;
-    color: #00f3ff;
-    text-shadow: 0 0 10px #00f3ff;
 }
-.header { font-size: 1.5rem; font-weight: bold; border-bottom: 1px solid #00f3ff; padding-bottom: 5px; }
-.stats { margin-top: 10px; font-size: 0.8rem; line-height: 1.5; }
-#gesture-name { font-size: 1.2rem; color: #ff0055; margin-top: 10px; }
+
+.header { 
+    font-size: 1.2rem; 
+    font-weight: bold; 
+    letter-spacing: 2px;
+}
+
+#gesture-name { 
+    font-size: 0.9rem; 
+    margin-top: 10px; 
+    color: #ff0055; 
+}

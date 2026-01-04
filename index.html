@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEURAL VORTEX v1.0</title>
+    <title>GHOST_HAND_v2.0</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
     <div class="overlay">
-        <div class="header"> SYSTEM: NEURAL_VORTEX_ACTIVE </div>
-        <div class="stats">
-            <p>PARTICLES: 5,000</p>
-            <p>CORE_SYNC: <span id="sync-val">0%</span></p>
-            <p id="gesture-name">SCANNING...</p>
-        </div>
+        <div class="header">NEURAL_LINK: ACTIVE</div>
+        <div id="gesture-name">SCANNING_SPACE...</div>
     </div>
-    <video class="input_video"></video>
+
+    <video class="input_video" playsinline></video>
+    
     <canvas class="output_canvas"></canvas>
+    
     <div id="canvas-container"></div>
+
     <script src="script.js"></script>
 </body>
 </html>
