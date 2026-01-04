@@ -1,111 +1,46 @@
-:root {
-    --bg-color: #1e1e1e;
-    --panel-bg: #252526;
-    --text-color: #cccccc;
-    --accent: #007acc;
-}
-
 body {
     margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    overflow: hidden; /* Prevent body scroll, let editor handle it */
+    background-color: #000;
+    color: white;
+    font-family: sans-serif;
+    overflow: hidden;
 }
 
 .container {
     display: flex;
     height: 100vh;
-    width: 100vw;
 }
 
-/* --- Camera Panel (Left) --- */
 .camera-panel {
-    width: 300px;
-    background-color: var(--panel-bg);
+    width: 250px;
+    background: #111;
     border-right: 1px solid #333;
+    padding: 15px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    padding: 10px;
-    box-sizing: border-box;
-    z-index: 10;
+    z-index: 100;
 }
 
 .video-container {
     position: relative;
     width: 100%;
-    height: 200px; /* Fixed height for video preview */
+    height: 150px;
     background: #000;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
-    margin-bottom: 20px;
 }
 
-.input_video {
-    display: none; /* Hide raw video, we show canvas */
-}
-
+.input_video { display: none; }
 .output_canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
     width: 100%;
     height: 100%;
-    transform: scaleX(-1); /* Mirror effect for natural feel */
+    transform: scaleX(-1); /* Visual Mirror for the preview */
 }
 
-h2 {
-    font-size: 1.2rem;
-    margin-bottom: 15px;
-    color: #fff;
-}
-
-.status-box {
-    width: 100%;
-    padding: 10px;
-    background: #333;
-    border-radius: 5px;
-    font-size: 0.9rem;
-}
-
-.status-box span {
-    font-weight: bold;
-    color: var(--accent);
-}
-
-.instruction {
-    margin-top: 10px;
-    font-size: 0.8rem;
-    color: #aaa;
-    font-style: italic;
-}
-
-/* --- Editor Panel (Right) --- */
-.editor-panel {
+#three-container {
     flex-grow: 1;
-    position: relative;
+    height: 100vh;
 }
 
-#monaco-editor-container {
-    width: 100%;
-    height: 100%;
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-    .container {
-        flex-direction: column;
-    }
-    .camera-panel {
-        width: 100%;
-        height: 250px;
-        flex-direction: row;
-        justify-content: space-around;
-    }
-    .video-container {
-        width: 200px;
-        margin-bottom: 0;
-    }
-}
+.status-box { margin-top: 20px; font-size: 0.8rem; }
+h2 { font-size: 1rem; color: #007acc; }

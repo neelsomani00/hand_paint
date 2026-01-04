@@ -1,92 +1,95 @@
-// --- 1. SETUP MONACO EDITOR ---
-let editor;
-require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.30.1/min/vs' }});
+// --- 1. THREE.JS 3D SCENE SETUP ---
+const container = document.getElementById('three-container');
+const scene = new THREE.Scene();
+const camera3D = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 
-require(['vs/editor/editor.main'], function() {
-    editor = monaco.editor.create(document.getElementById('monaco-editor-container'), {
-        value: "// 🖱️ CURSOR CONTROL MODE\n// Move your index finger to move the cursor.\n// Pinch to select text.\n\nfunction test() {\n  console.log('AI Controller Active');\n}",
-        language: 'javascript',
-        theme: 'vs-dark',
-        automaticLayout: true,
-        fontSize: 18
-    });
-});
+renderer.setSize(container.clientWidth, container.clientHeight);
+container.appendChild(renderer.domElement);
 
-// --- 2. SMOOTHING VARIABLES ---
+// Add a glowing ball
+const geometry = new THREE.SphereGeometry(1, 32, 32);
+const material = new THREE.MeshPhongMaterial({ color: 0x007acc, shininess: 100 });
+const ball = new THREE.Mesh(geometry, material);
+scene.add(ball);
+
+// Add a grid floor to see movement better
+const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+grid.position.y = -2;
+scene.add(grid);
+
+// Lighting
+const light = new THREE.PointLight(0xffffff, 1, 100);
+light.position.set(10, 10, 10);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0x404040));
+
+camera3D.position.z = 8;
+
+// Animation Loop
+function animate() {
+    requestAnimationFrame(animate);
+    ball.rotation.y += 0.01;
+    renderer.render(scene, camera3D);
+}
+animate();
+
+// --- 2. HAND TRACKING & MIRROR FIX ---
 let lastX = 0;
 let lastY = 0;
-const smoothing = 0.2; // Adjust between 0.1 (smooth) and 1.0 (instant)
+const smoothing = 0.15;
 
-// --- 3. THE GEOMETRY ENGINE ---
 function getDist(p1, p2) {
     return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
 }
 
-const gestureText = document.getElementById('gesture-text');
-
-function controlEditorWithHand(landmarks) {
-    const indexTip = landmarks[8];
-    const thumbTip = landmarks[4];
-    
-    // 1. SMOOTHING LOGIC (Lerp)
-    // We map the 0-1 coordinates to the editor's line/column count
-    const targetX = indexTip.x;
-    const targetY = indexTip.y;
-    
-    const smoothX = lastX + (targetX - lastX) * smoothing;
-    const smoothY = lastY + (targetY - lastY) * smoothing;
-    
-    lastX = smoothX;
-    lastY = smoothY;
-
-    // 2. MAPPING TO EDITOR POSITION
-    if (editor) {
-        const lineCount = editor.getModel().getLineCount();
-        const targetLine = Math.floor(smoothY * lineCount) + 1;
-        const targetCol = Math.floor(smoothX * 100); // Assume 100 chars wide
-
-        // Move the cursor visually
-        editor.setPosition({ lineNumber: targetLine, column: targetCol });
-        editor.revealPositionInCenter({ lineNumber: targetLine, column: targetCol });
-
-        // 3. PINCH TO CLICK/SELECT
-        const pinchDist = getDist(indexTip, thumbTip);
-        if (pinchDist < 0.04) {
-            gestureText.innerText = "CLICK / SELECTING";
-            gestureText.style.color = "#ff0000";
-            // Optional: Trigger a command or focus
-            editor.focus();
-        } else {
-            gestureText.innerText = "MOVING CURSOR";
-            gestureText.style.color = "#007acc";
-        }
-    }
-}
-
-// --- 4. MEDIAPIPE & CAMERA ---
 function onResults(results) {
     const canvasElement = document.getElementsByClassName('output_canvas')[0];
     const canvasCtx = canvasElement.getContext('2d');
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    
-    // Mirror the video for natural movement
-    canvasCtx.translate(canvasElement.width, 0);
-    canvasCtx.scale(-1, 1);
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
     if (results.multiHandLandmarks) {
         for (const landmarks of results.multiHandLandmarks) {
+            // Draw Hand Skeleton
             drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#007acc', lineWidth: 2});
-            drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
-            controlEditorWithHand(landmarks);
+
+            const indexTip = landmarks[8];
+            const thumbTip = landmarks[4];
+
+            // MIRROR FIX: 
+            // MediaPipe gives 0 on left, 1 on right. 
+            // In 3D, we want 1 to be right, 0 to be left. 
+            // Because our video is mirrored, we use (1 - indexTip.x) to flip it back.
+            const rawX = (1 - indexTip.x); 
+            const rawY = (1 - indexTip.y);
+
+            // Convert 0-1 range to -5 to 5 for 3D space
+            const targetX = (rawX - 0.5) * 15;
+            const targetY = (rawY - 0.5) * 10;
+
+            // Apply Smoothing
+            ball.position.x += (targetX - ball.position.x) * smoothing;
+            ball.position.y += (targetY - ball.position.y) * smoothing;
+
+            // Pinch Detection to change color
+            const pinch = getDist(indexTip, thumbTip);
+            if(pinch < 0.05) {
+                ball.material.color.setHex(0xff0000); // Red when pinching
+                document.getElementById('gesture-text').innerText = "PINCH: COLOR CHANGE";
+            } else {
+                ball.material.color.setHex(0x007acc); // Blue normally
+                document.getElementById('gesture-text').innerText = "MOVING BALL";
+            }
         }
     }
     canvasCtx.restore();
 }
 
+// --- 3. INITIALIZE MEDIAPIPE ---
 const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 hands.onResults(onResults);
 
 const videoElement = document.getElementsByClassName('input_video')[0];
@@ -95,3 +98,10 @@ const camera = new Camera(videoElement, {
     width: 640, height: 480
 });
 camera.start();
+
+// Handle Window Resize
+window.addEventListener('resize', () => {
+    camera3D.aspect = container.clientWidth / container.clientHeight;
+    camera3D.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+});
