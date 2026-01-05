@@ -3,28 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEURAL_DRAW_FINAL</title>
+    <title>NEURAL_INK_FINAL_SYSTEM</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <video class="input_video" playsinline></video>
-
-    <div id="canvas-container">
+    <div id="ui-layer-container">
         <canvas id="ink_layer"></canvas>
-        <canvas id="ui_layer"></canvas>
+        <canvas id="cursor_layer"></canvas>
     </div>
 
-    <div id="left-hud">
-        <div class="hud-label">LEFT_CTRL</div>
-        <div id="color-indicator">COLOR</div>
-        <div id="size-indicator">SIZE: 10</div>
+    <div class="hud left-side">
+        <div class="hud-header">MODULE: REMOTE_CTRL</div>
+        <div id="ctrl-state">LOCKED</div>
+        <div class="meter-label">NEON_SWATCH</div>
+        <div id="color-bar"></div>
+        <div class="meter-label">LINE_THICKNESS</div>
+        <div id="size-text">10px</div>
     </div>
 
-    <div id="right-hud">
-        <div class="hud-label">RIGHT_PEN</div>
-        <div id="mode-indicator">SCANNING</div>
+    <div class="hud right-side">
+        <div class="hud-header">MODULE: NEURAL_PEN</div>
+        <div id="pen-mode">STANDBY</div>
     </div>
 
     <script src="script.js"></script>
