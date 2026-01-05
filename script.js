@@ -1,89 +1,69 @@
 const videoElement = document.querySelector('.input_video');
 const inkCanvas = document.getElementById('ink_layer');
-const cursorCanvas = document.getElementById('cursor_layer');
+const uiCanvas = document.getElementById('ui_layer');
 const inkCtx = inkCanvas.getContext('2d');
-const cursorCtx = cursorCanvas.getContext('2d');
+const uiCtx = uiCanvas.getContext('2d');
 
-const colorBar = document.getElementById('color-bar');
-const sizeText = document.getElementById('size-text');
-const penMode = document.getElementById('pen-mode');
-const ctrlState = document.getElementById('ctrl-state');
-
-let brush = { color: '#00f3ff', size: 12, x: 0, y: 0, isDrawing: false };
-const palette = ['#00f3ff', '#ff0055', '#00ff88', '#ffff00', '#ffffff', '#aa00ff'];
+let brush = { color: '#00f3ff', size: 10, x: 0, y: 0, isDrawing: false, lastX: 0, lastY: 0 };
+const palette = [
+    { name: 'CYAN', hex: '#00f3ff', y: 150 },
+    { name: 'MAGENTA', hex: '#ff0055', y: 250 },
+    { name: 'LIME', hex: '#00ff88', y: 350 },
+    { name: 'GOLD', hex: '#ffff00', y: 450 }
+];
 
 function resize() {
-    inkCanvas.width = cursorCanvas.width = window.innerWidth;
-    inkCanvas.height = cursorCanvas.height = window.innerHeight;
+    inkCanvas.width = uiCanvas.width = window.innerWidth;
+    inkCanvas.height = uiCanvas.height = window.innerHeight;
 }
 window.addEventListener('resize', resize);
 resize();
 
-// Helper to check finger state
-const getFinger = (lm, idx) => lm[idx * 4 + 4].y < lm[idx * 4 + 2].y;
-
 function onResults(results) {
-    cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
-    
-    if (!results.multiHandLandmarks) {
-        penMode.innerText = "STANDBY";
-        return;
-    }
+    uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+    drawInterface();
+
+    if (!results.multiHandLandmarks) return;
 
     results.multiHandLandmarks.forEach((lm, i) => {
-        // --- HARD POSITION FIX ---
-        // We ignore MediaPipe's "Left/Right" label and use screen position.
-        // Screen is mirrored, so landmarks.x < 0.5 is actually the user's RIGHT hand.
-        const isRightScreen = lm[0].x < 0.5; 
-        const x = lm[8].x * cursorCanvas.width;
-        const y = lm[8].y * cursorCanvas.height;
+        const x = lm[8].x * uiCanvas.width;
+        const y = lm[8].y * uiCanvas.height;
+        const isRightHand = lm[0].x < 0.5; // Mirrored: Right of screen is User's Left
 
-        if (!isRightScreen) { 
-            // --- MODULE: REMOTE CONTROL (Left Side of User's Reality) ---
-            const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-            
-            if (pinchDist < 0.04) {
-                ctrlState.innerText = "ACTIVE";
-                ctrlState.style.color = "#00ff88";
+        if (isRightHand) {
+            // --- MODULE: INTERACTIVE DOCK (USER LEFT HAND) ---
+            palette.forEach(p => {
+                const dist = Math.hypot(x - (uiCanvas.width - 80), y - p.y);
+                if (dist < 40) {
+                    brush.color = p.hex;
+                    // Visual feedback for selection
+                    uiCtx.beginPath();
+                    uiCtx.arc(uiCanvas.width - 80, p.y, 45, 0, Math.PI*2);
+                    uiCtx.strokeStyle = p.hex;
+                    uiCtx.stroke();
+                }
+            });
 
-                // Mapping X to Color Palette
-                const colorIdx = Math.floor((lm[8].x - 0.5) * 2 * palette.length);
-                const safeIdx = Math.max(0, Math.min(colorIdx, palette.length - 1));
-                brush.color = palette[safeIdx];
-                colorBar.style.backgroundColor = brush.color;
-                colorBar.style.boxShadow = `0 0 20px ${brush.color}`;
-
-                // Mapping Y to Size
-                brush.size = Math.max(2, Math.floor((1 - lm[8].y) * 80));
-                sizeText.innerText = `${brush.size}px`;
-
-                drawCursor(x, y, brush.color, true);
-            } else {
-                ctrlState.innerText = "LOCKED";
-                ctrlState.style.color = "#ff0055";
-                drawCursor(x, y, "rgba(255,255,255,0.2)", false);
+            // Size Slider Zone
+            if (x > uiCanvas.width - 150 && x < uiCanvas.width - 120) {
+                brush.size = Math.max(2, Math.floor((1 - (y / uiCanvas.height)) * 100));
             }
-        } else {
-            // --- MODULE: NEURAL PEN (Right Side of User's Reality) ---
-            const indexUp = getFinger(lm, 1);
-            const middleUp = getFinger(lm, 2);
+            drawCursor(x, y, '#fff', false);
 
-            if (!indexUp && !middleUp) {
-                // FIST = DRAW
-                penMode.innerText = "INKING";
-                penMode.style.color = brush.color;
+        } else {
+            // --- MODULE: NEURAL PEN (USER RIGHT HAND) ---
+            const indexFolded = lm[8].y > lm[6].y;
+            const middleFolded = lm[12].y > lm[10].y;
+
+            if (indexFolded && middleFolded) {
+                // FIST = INK
                 inkCtx.globalCompositeOperation = 'source-over';
-                drawInk(x, y);
-            } else if (indexUp && middleUp) {
-                // FLAT PALM = ERASE
-                penMode.innerText = "ERASER";
-                penMode.style.color = "#ff4444";
+                smoothDraw(x, y);
+            } else if (!indexFolded && !middleFolded) {
+                // PALM = ERASE
                 inkCtx.globalCompositeOperation = 'destination-out';
-                drawInk(x, y);
+                smoothDraw(x, y);
             } else {
-                // POINTING = HOVER
-                penMode.innerText = "HOVER";
-                penMode.style.color = "#ffffff";
                 brush.isDrawing = false;
             }
             drawCursor(x, y, brush.color, true);
@@ -91,7 +71,33 @@ function onResults(results) {
     });
 }
 
-function drawInk(x, y) {
+function drawInterface() {
+    const W = uiCanvas.width;
+    // Draw Color Swatches
+    palette.forEach(p => {
+        uiCtx.beginPath();
+        uiCtx.arc(W - 80, p.y, 30, 0, Math.PI*2);
+        uiCtx.fillStyle = 'rgba(0,0,0,0.5)';
+        uiCtx.fill();
+        uiCtx.strokeStyle = p.hex;
+        uiCtx.lineWidth = (brush.color === p.hex) ? 5 : 2;
+        uiCtx.stroke();
+        
+        uiCtx.fillStyle = p.hex;
+        uiCtx.font = '10px Courier New';
+        uiCtx.fillText(p.name, W - 100, p.y + 50);
+    });
+
+    // Draw Size Slider Beam
+    uiCtx.fillStyle = 'rgba(0, 243, 255, 0.1)';
+    uiCtx.fillRect(W - 140, 100, 20, uiCanvas.height - 200);
+    const sliderY = uiCanvas.height - 100 - (brush.size * (uiCanvas.height - 200) / 100);
+    uiCtx.fillStyle = '#00f3ff';
+    uiCtx.fillRect(W - 145, sliderY, 30, 4);
+    uiCtx.fillText(`SIZE:${brush.size}`, W - 180, sliderY + 5);
+}
+
+function smoothDraw(x, y) {
     inkCtx.lineWidth = brush.size;
     inkCtx.lineCap = 'round';
     inkCtx.lineJoin = 'round';
@@ -102,25 +108,30 @@ function drawInk(x, y) {
         inkCtx.moveTo(x, y);
         brush.isDrawing = true;
     } else {
-        inkCtx.lineTo(x, y);
+        // Predictive Interpolation
+        const midX = (brush.lastX + x) / 2;
+        const midY = (brush.lastY + y) / 2;
+        inkCtx.quadraticCurveTo(brush.lastX, brush.lastY, midX, midY);
         inkCtx.stroke();
     }
+    brush.lastX = x; brush.lastY = y;
 }
 
-function drawCursor(x, y, col, active) {
-    cursorCtx.beginPath();
-    cursorCtx.arc(x, y, active ? brush.size/2 + 5 : 12, 0, Math.PI*2);
-    cursorCtx.strokeStyle = col;
-    cursorCtx.lineWidth = 3;
-    cursorCtx.stroke();
-    if(active && brush.isDrawing) {
-        cursorCtx.fillStyle = col;
-        cursorCtx.fill();
+function drawCursor(x, y, col, isPen) {
+    uiCtx.beginPath();
+    uiCtx.arc(x, y, isPen ? brush.size/2 : 15, 0, Math.PI*2);
+    uiCtx.strokeStyle = col;
+    uiCtx.lineWidth = 2;
+    uiCtx.stroke();
+    if (isPen) {
+        uiCtx.moveTo(x - 20, y); uiCtx.lineTo(x + 20, y);
+        uiCtx.moveTo(x, y - 20); uiCtx.lineTo(x, y + 20);
+        uiCtx.stroke();
     }
 }
 
 const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-hands.setOptions({ maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+hands.setOptions({ maxNumHands: 2, modelComplexity: 0, minDetectionConfidence: 0.7 });
 hands.onResults(onResults);
 
 const camera = new Camera(videoElement, {

@@ -3,30 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEURAL_INK_FINAL_SYSTEM</title>
+    <title>NEURAL_INTERFACE_ULTIMATE</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <video class="input_video" playsinline></video>
-    <div id="ui-layer-container">
+    <div id="interface-container">
         <canvas id="ink_layer"></canvas>
-        <canvas id="cursor_layer"></canvas>
+        <canvas id="ui_layer"></canvas>
     </div>
 
-    <div class="hud left-side">
-        <div class="hud-header">MODULE: REMOTE_CTRL</div>
-        <div id="ctrl-state">LOCKED</div>
-        <div class="meter-label">NEON_SWATCH</div>
-        <div id="color-bar"></div>
-        <div class="meter-label">LINE_THICKNESS</div>
-        <div id="size-text">10px</div>
-    </div>
-
-    <div class="hud right-side">
-        <div class="hud-header">MODULE: NEURAL_PEN</div>
-        <div id="pen-mode">STANDBY</div>
+    <div class="system-status">
+        <div id="connection-line"></div>
+        <span>SYSTEM_ACTIVE // LATENCY: 12ms</span>
     </div>
 
     <script src="script.js"></script>
